@@ -111,16 +111,58 @@
 </div>
 
 <script>
+    // JSONBin Configuration
+    const JSONBIN_API_KEY = '$2a$10$rLwtXCLm86AtXE3S2ZPcOOMXMVd0Qzs4PJAoiVeu4fHJ2GYUiZz7W';
+    const JSONBIN_BIN_ID = '69b86bcfb7ec241ddc74757a'; // Bin created and active
     const STORAGE_KEY = 'queue_mgmt_app_v1';
-
     let appData = { queue: [], anchor: null, gpsOverride: false, adminPassword: null, staffPassword: null, deletedItems: [] };
 
-    function loadData() {
+    async function createJsonBinIfNeeded() {
+        if (JSONBIN_BIN_ID) return; // Already have a bin
+        try {
+            const res = await fetch('https://api.jsonbin.io/v3/b', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Master-Key': JSONBIN_API_KEY
+                },
+                body: JSON.stringify({ queue: [], anchor: null, gpsOverride: false, adminPassword: null, staffPassword: null, deletedItems: [] })
+            });
+            if (res.ok) {
+                const data = await res.json();
+                console.log('JSONBin Bin Created:', data.metadata.id);
+                alert('✅ JSONBin bin created successfully!\n\nBin ID: ' + data.metadata.id + '\n\nPlease update the JSONBIN_BIN_ID in the code with this ID.');
+            }
+        } catch (e) {
+            console.error('Failed to create JSONBin bin:', e);
+        }
+    }
+
+    async function loadData() {
+        // Try loading from JSONBin first
+        if (JSONBIN_BIN_ID) {
+            try {
+                const res = await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}/latest`, {
+                    headers: { 'X-Master-Key': JSONBIN_API_KEY }
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    appData = normalizeData(data.record ?? data);
+                    console.log('✅ Data loaded from JSONBin');
+                    return;
+                }
+            } catch (e) {
+                console.error('Failed to load from JSONBin:', e);
+            }
+        }
+        
+        // Fallback to localStorage
         const raw = localStorage.getItem(STORAGE_KEY);
         if (!raw) return;
         try {
             const parsed = JSON.parse(raw);
             if (parsed && typeof parsed === 'object') appData = normalizeData(parsed);
+            console.log('✅ Data loaded from localStorage');
         } catch (e) {
             console.error('Failed to parse local data', e);
         }
@@ -149,7 +191,28 @@
     }
 
     async function saveData() {
+        // Save to localStorage
         localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
+        
+        // Try saving to JSONBin
+        if (JSONBIN_BIN_ID) {
+            try {
+                const res = await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Master-Key': JSONBIN_API_KEY
+                    },
+                    body: JSON.stringify(appData)
+                });
+                if (res.ok) {
+                    console.log('✅ Data saved to JSONBin');
+                }
+            } catch (e) {
+                console.error('Failed to save to JSONBin:', e);
+            }
+        }
+        
         renderAll();
     }
 

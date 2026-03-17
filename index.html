@@ -712,9 +712,11 @@
         }
     }
 
-    loadData();
-    addItemRow();
-    renderAll();
+    (async () => {
+        await loadData();
+        addItemRow();
+        renderAll();
+    })();
 </script>
 </body>
 </html>
